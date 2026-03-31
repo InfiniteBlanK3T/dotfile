@@ -1,0 +1,6 @@
+# Example for local.zsh (DO NOT COMMIT REAL SECRETS)
+# Copy to local.zsh and fill in your real values. This file is safe to commit.
+
+# BookStack Homelab remote management
+export BOOKSTACK_TOKEN_ID=""
+export BOOKSTACK_TOKEN_SECRET=""
