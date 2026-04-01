@@ -1,0 +1,29 @@
+[user]
+	name = InfiniteBlanK3T
+	email = vo.thomas.11647@outlook.com  # ← replace this
+
+[core]
+	editor = nvim
+	pager = less -FRX
+	autocrlf = input
+
+[init]
+	defaultBranch = main
+
+[pull]
+	rebase = true
+
+[push]
+	autoSetupRemote = true
+
+[rebase]
+	autoStash = true
+
+[diff]
+	colorMoved = zebra
+
+[merge]
+	conflictstyle = diff3
+
+[fetch]
+	prune = true

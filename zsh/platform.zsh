@@ -2,7 +2,8 @@
 case "$(uname -s)" in
   Darwin)
     export OS_TYPE="macos"
-    eval "$('/opt/homebrew/bin/brew' shellenv)"
+    # Guard: login shells already ran brew shellenv via .zprofile — avoid double PATH entries
+    [[ -z "$HOMEBREW_PREFIX" ]] && eval "$(/opt/homebrew/bin/brew shellenv)"
     ;;
   Linux)
     export OS_TYPE="linux"

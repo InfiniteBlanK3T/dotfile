@@ -81,6 +81,7 @@ fi
 echo "==> Symlinking dotfiles..."
 
 safe_symlink "$DOTFILES/zsh/.zshrc"     "$HOME/.zshrc"
+safe_symlink "$DOTFILES/zsh/.zprofile"  "$HOME/.zprofile"
 safe_symlink "$DOTFILES/git/.gitconfig" "$HOME/.gitconfig"
 
 if [[ -n "$BACKUP_DIR" && -d "$BACKUP_DIR" ]]; then
@@ -99,4 +100,8 @@ fi
 
 echo ""
 echo "==> Done! Restart your shell or run: source ~/.zshrc"
+echo ""
+echo "    Reminders:"
+echo "    - VS Code CLI: Cmd+Shift+P → 'Shell Command: Install code command in PATH'"
+echo "    - Fill in secrets: $DOTFILES/zsh/local.zsh"
 
