@@ -29,7 +29,7 @@ Personal shell configuration for macOS and Fedora. Built on Zsh + Oh My Zsh with
 ### New machine (fresh)
 
 ```bash
-git clone https://github.com/<you>/dotfiles.git ~/.dotfiles
+git clone https://github.com/InfiniteBlanK3T/dotfile.git ~/.dotfiles
 cd ~/.dotfiles
 bash bootstrap.sh
 ```
