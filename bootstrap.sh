@@ -1,5 +1,5 @@
 #!/bin/bash
-# bootstrap.sh — set up dotfiles on macOS or Fedora
+# bootstrap.sh — set up dotfiles on macOS, Fedora, or Termux (Android)
 #
 # Usage:
 #   bash ~/.dotfiles/bootstrap.sh           # full setup (installs packages + symlinks)
@@ -40,10 +40,20 @@ safe_symlink() {
 }
 
 # ── OS detection ─────────────────────────────────────────────────────────────
+# Termux sets TERMUX_VERSION and reports uname -s as "Linux"; detect it first.
+IS_TERMUX=false
+[[ -n "${TERMUX_VERSION:-}" ]] && IS_TERMUX=true
+
 OS_TYPE="$(uname -s)"
 
 if [[ "$LINKS_ONLY" == false ]]; then
-  if [[ "$OS_TYPE" == "Darwin" ]]; then
+  if [[ "$IS_TERMUX" == true ]]; then
+    echo "==> Detected Termux (Android)"
+    echo "==> Installing packages via pkg..."
+    pkg update -y
+    pkg install -y zsh git curl fzf zoxide direnv neovim unzip
+
+  elif [[ "$OS_TYPE" == "Darwin" ]]; then
     echo "==> Detected macOS"
 
     if ! command -v brew &>/dev/null; then
@@ -75,14 +85,71 @@ if [[ "$LINKS_ONLY" == false ]]; then
     echo "==> Installing Oh My Zsh..."
     sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
   fi
+
+  # ── Powerlevel10k theme ────────────────────────────────────────────────────
+  ZSH_CUSTOM="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}"
+  if [[ ! -d "$ZSH_CUSTOM/themes/powerlevel10k" ]]; then
+    echo "==> Installing Powerlevel10k theme..."
+    git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "$ZSH_CUSTOM/themes/powerlevel10k"
+  else
+    echo "    [skip]   Powerlevel10k already installed"
+  fi
+
+  # ── Oh My Zsh plugins ─────────────────────────────────────────────────────
+  if [[ ! -d "$ZSH_CUSTOM/plugins/zsh-autosuggestions" ]]; then
+    echo "==> Installing zsh-autosuggestions..."
+    git clone https://github.com/zsh-users/zsh-autosuggestions "$ZSH_CUSTOM/plugins/zsh-autosuggestions"
+  else
+    echo "    [skip]   zsh-autosuggestions already installed"
+  fi
+
+  if [[ ! -d "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting" ]]; then
+    echo "==> Installing zsh-syntax-highlighting..."
+    git clone https://github.com/zsh-users/zsh-syntax-highlighting.git "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting"
+  else
+    echo "    [skip]   zsh-syntax-highlighting already installed"
+  fi
+
+  # ── JetBrains Mono Nerd Font ──────────────────────────────────────────────
+  JBMONO_URL="https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip"
+
+  if [[ "$IS_TERMUX" == true ]]; then
+    echo "==> Installing JetBrains Mono Nerd Font for Termux..."
+    mkdir -p "$HOME/.termux"
+    TMP_FONT_DIR="$(mktemp -d)"
+    curl -fsSL "$JBMONO_URL" -o "$TMP_FONT_DIR/JetBrainsMono.zip"
+    unzip -p "$TMP_FONT_DIR/JetBrainsMono.zip" "JetBrainsMonoNerdFont-Regular.ttf" > "$HOME/.termux/font.ttf"
+    rm -rf "$TMP_FONT_DIR"
+    echo "    Font installed to ~/.termux/font.ttf"
+    echo "    Run: termux-reload-settings  (or restart Termux) to apply the font"
+
+  elif [[ "$OS_TYPE" == "Darwin" ]]; then
+    echo "==> Installing JetBrains Mono Nerd Font via Homebrew Cask..."
+    brew install --cask font-jetbrains-mono-nerd-font
+
+  elif [[ "$OS_TYPE" == "Linux" ]]; then
+    echo "==> Installing JetBrains Mono Nerd Font..."
+    FONT_DIR="$HOME/.local/share/fonts/JetBrainsMono"
+    mkdir -p "$FONT_DIR"
+    TMP_FONT_DIR="$(mktemp -d)"
+    curl -fsSL "$JBMONO_URL" -o "$TMP_FONT_DIR/JetBrainsMono.zip"
+    unzip -o "$TMP_FONT_DIR/JetBrainsMono.zip" "*.ttf" -d "$FONT_DIR"
+    rm -rf "$TMP_FONT_DIR"
+    fc-cache -f "$FONT_DIR"
+    echo "    Font installed to $FONT_DIR"
+  fi
 fi
 
 # ── Symlinks ─────────────────────────────────────────────────────────────────
 echo "==> Symlinking dotfiles..."
 
 safe_symlink "$DOTFILES/zsh/.zshrc"     "$HOME/.zshrc"
-safe_symlink "$DOTFILES/zsh/.zprofile"  "$HOME/.zprofile"
 safe_symlink "$DOTFILES/git/.gitconfig" "$HOME/.gitconfig"
+
+# .zprofile is for macOS/Linux login shells; Termux uses its own init system
+if [[ "$IS_TERMUX" != true ]]; then
+  safe_symlink "$DOTFILES/zsh/.zprofile"  "$HOME/.zprofile"
+fi
 
 if [[ -n "$BACKUP_DIR" && -d "$BACKUP_DIR" ]]; then
   echo ""
@@ -102,6 +169,15 @@ echo ""
 echo "==> Done! Restart your shell or run: source ~/.zshrc"
 echo ""
 echo "    Reminders:"
-echo "    - VS Code CLI: Cmd+Shift+P → 'Shell Command: Install code command in PATH'"
+if [[ "$IS_TERMUX" == true ]]; then
+  echo "    - Run 'termux-reload-settings' (or restart Termux) to apply the new font"
+  echo "    - Run 'chsh -s zsh' if Zsh is not already your default shell"
+elif [[ "$OS_TYPE" == "Darwin" ]]; then
+  echo "    - VS Code CLI: Cmd+Shift+P → 'Shell Command: Install code command in PATH'"
+  echo "    - Set your terminal font to 'JetBrainsMonoNerdFont' in terminal preferences"
+else
+  echo "    - Set your terminal font to 'JetBrainsMonoNerdFont' in terminal preferences"
+fi
+echo "    - Run 'p10k configure' to personalise your Powerlevel10k prompt"
 echo "    - Fill in secrets: $DOTFILES/zsh/local.zsh"
 
