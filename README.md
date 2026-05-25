@@ -1,6 +1,6 @@
 # dotfiles
 
-Personal shell configuration for macOS and Fedora. Built on Zsh + Oh My Zsh with a modular structure — each concern lives in its own file, platform differences are isolated, and secrets stay off Git.
+Personal shell configuration for macOS, Fedora, and Termux (Android). Built on Zsh + Oh My Zsh with a modular structure — each concern lives in its own file, platform differences are isolated, and secrets stay off Git.
 
 ## Structure
 
@@ -14,7 +14,8 @@ Personal shell configuration for macOS and Fedora. Built on Zsh + Oh My Zsh with
 │   └── config            # SSH client config (no private keys)
 └── zsh/
     ├── .zshrc            # Entry point — symlinked to ~/.zshrc
-    ├── platform.zsh      # OS detection, Homebrew (macOS) / local bin (Linux)
+    ├── .zprofile         # Login shell — Homebrew init (macOS only, guarded)
+    ├── platform.zsh      # OS detection: macOS / Fedora / Termux
     ├── path.zsh          # PATH configuration
     ├── env.zsh           # Environment variables (non-secret)
     ├── options.zsh       # Zsh behaviour options
@@ -26,7 +27,7 @@ Personal shell configuration for macOS and Fedora. Built on Zsh + Oh My Zsh with
 
 ## Quick Setup
 
-### New machine (fresh)
+### macOS / Fedora
 
 ```bash
 git clone https://github.com/InfiniteBlanK3T/dotfile.git ~/.dotfiles
@@ -34,14 +35,24 @@ cd ~/.dotfiles
 bash bootstrap.sh
 ```
 
-`bootstrap.sh` will:
-1. Install Homebrew (macOS) or use `dnf` (Fedora)
-2. Install `fzf`, `zoxide`, `direnv`, `neovim`
-3. Install Oh My Zsh if not already present
-4. Symlink `~/.zshrc` and `~/.gitconfig` into the dotfiles
-5. Create `zsh/local.zsh` from `local.zsh.example` if it doesn't exist
+### Termux (Android)
 
-After bootstrap, restart your shell or run `source ~/.zshrc`.
+```bash
+pkg install -y git
+git clone https://github.com/InfiniteBlanK3T/dotfile.git ~/.dotfiles
+cd ~/.dotfiles
+bash bootstrap.sh
+```
+
+`bootstrap.sh` will:
+1. Install packages via the platform package manager (Homebrew / dnf / pkg)
+2. Install Oh My Zsh
+3. Clone Powerlevel10k theme and the `zsh-autosuggestions` / `zsh-syntax-highlighting` plugins
+4. Install JetBrains Mono Nerd Font for the current platform
+5. Symlink `~/.zshrc` and `~/.gitconfig` (and `~/.zprofile` on macOS/Linux)
+6. Create `zsh/local.zsh` from `local.zsh.example` if it doesn't exist
+
+After bootstrap, restart your shell or run `source ~/.zshrc`, then run `p10k configure` to personalise your prompt.
 
 ### Existing machine (already has .zshrc, .gitconfig, etc.)
 
@@ -54,17 +65,6 @@ After bootstrap, restart your shell or run `source ~/.zshrc`.
 
 Backups land in `~/.dotfiles-backup/<timestamp>/` so you can always recover.
 
-```bash
-git clone https://github.com/<you>/dotfiles.git ~/.dotfiles
-cd ~/.dotfiles
-bash bootstrap.sh
-```
-
-To review what was backed up:
-```bash
-ls ~/.dotfiles-backup/
-```
-
 To run only the symlink step (skip package installs, useful on an existing machine):
 ```bash
 bash bootstrap.sh --links
@@ -72,7 +72,7 @@ bash bootstrap.sh --links
 
 **Recommended workflow for existing machines:**
 1. Run `bash bootstrap.sh --links` first to see what gets backed up and linked
-2. Diff your backup against the dotfiles to carry over any personal config you want to keep:
+2. Diff your backup against the dotfiles to carry over any personal config:
    ```bash
    diff ~/.dotfiles-backup/<timestamp>/.zshrc ~/.dotfiles/zsh/.zshrc
    ```
@@ -81,16 +81,40 @@ bash bootstrap.sh --links
 
 ## Platform Support
 
-| File           | macOS | Fedora |
-|----------------|-------|--------|
-| `platform.zsh` | Homebrew shellenv | `~/.local/bin` in PATH |
-| `path.zsh`     | VS Code CLI path | — |
-| `plugins.zsh`  | fzf, zoxide, direnv (guarded) | fzf, zoxide, direnv (guarded) |
-| `bootstrap.sh` | `brew install` | `dnf install` |
+| File           | macOS | Fedora | Termux (Android) |
+|----------------|-------|--------|------------------|
+| `platform.zsh` | Homebrew shellenv | `~/.local/bin` in PATH | `$PREFIX/bin` in PATH |
+| `path.zsh`     | VS Code CLI path | — | skips standard Unix paths |
+| `.zprofile`    | Homebrew init (guarded) | symlinked (no-op) | not symlinked |
+| `plugins.zsh`  | fzf, zoxide, direnv (guarded) | fzf, zoxide, direnv (guarded) | fzf, zoxide, direnv (guarded) |
+| `bootstrap.sh` | `brew install` | `dnf install` | `pkg install` (no sudo) |
+| Font install   | Homebrew Cask | `~/.local/share/fonts/` + `fc-cache` | `~/.termux/font.ttf` |
 
 Tool hooks use `command -v` guards — the shell won't error if a tool isn't installed yet.
 
-## zsh File Load Order
+## Theme & Prompt
+
+The dotfiles ship with [Powerlevel10k](https://github.com/romkatv/powerlevel10k) as the Zsh theme. Bootstrap clones it automatically. **Prompt style is intentionally left unconfigured** — run the wizard yourself after setup:
+
+```zsh
+p10k configure
+```
+
+Your choices are saved to `~/.p10k.zsh` (not tracked by this repo, so each machine has its own layout).
+
+## Nerd Font
+
+Bootstrap installs [JetBrains Mono Nerd Font](https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip) automatically:
+
+| Platform | Location | Activation |
+|----------|----------|------------|
+| macOS | system font (Homebrew Cask) | select in terminal preferences |
+| Fedora | `~/.local/share/fonts/JetBrainsMono/` | automatic via `fc-cache` |
+| Termux | `~/.termux/font.ttf` | run `termux-reload-settings` or restart Termux |
+
+After installing the font, set **JetBrainsMono Nerd Font** as your terminal's font face to unlock all Powerlevel10k glyphs.
+
+## Zsh File Load Order
 
 ```
 .zshrc
@@ -121,9 +145,10 @@ export MY_API_TOKEN="..."
 
 ## Tools Installed
 
-| Tool      | Purpose                              |
-|-----------|--------------------------------------|
-| `fzf`     | Fuzzy finder — Ctrl+R, Ctrl+T        |
-| `zoxide`  | Smarter `cd` with frecency           |
-| `direnv`  | Per-directory environment variables  |
-| `neovim`  | Editor                               |
+| Tool      | Purpose                              | macOS | Fedora | Termux |
+|-----------|--------------------------------------|-------|--------|--------|
+| `fzf`     | Fuzzy finder — Ctrl+R, Ctrl+T        | ✓ | ✓ | ✓ |
+| `zoxide`  | Smarter `cd` with frecency           | ✓ | ✓ | ✓ |
+| `direnv`  | Per-directory environment variables  | ✓ | ✓ | ✓ |
+| `neovim`  | Editor                               | ✓ | ✓ | ✓ |
+
