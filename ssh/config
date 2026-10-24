@@ -1,0 +1,14 @@
+# ~/.ssh/config — managed by ~/.dotfiles
+# Symlinked: ln -sf ~/.dotfiles/ssh/config ~/.ssh/config
+#
+# Public client config only. Never commit private keys.
+
+# Keep connections alive on flaky networks
+Host *
+    ServerAliveInterval 60
+    ServerAliveCountMax 3
+
+# Add machine-specific hosts below, for example:
+# Host homelab
+#     HostName 192.168.1.10
+#     User youruser

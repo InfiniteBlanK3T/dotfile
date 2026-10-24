@@ -2,7 +2,8 @@
 # Copy to local.zsh and fill in your real values. This file is safe to commit.
 
 # Kubernetes — path to kubeconfig for this machine
-export KUBECONFIG=~/.kube/config-<cluster-name>
+# Uncomment and set the real path. Keep the quotes: < > are shell redirections.
+# export KUBECONFIG="$HOME/.kube/config-<cluster-name>"
 
 # BookStack Homelab remote management
 export BOOKSTACK_TOKEN_ID=""

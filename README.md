@@ -46,13 +46,14 @@ bash bootstrap.sh
 
 `bootstrap.sh` will:
 1. Install packages via the platform package manager (Homebrew / dnf / pkg)
-2. Install Oh My Zsh
-3. Clone Powerlevel10k theme and the `zsh-autosuggestions` / `zsh-syntax-highlighting` plugins
-4. Install JetBrains Mono Nerd Font for the current platform
-5. Symlink `~/.zshrc` and `~/.gitconfig` (and `~/.zprofile` on macOS/Linux)
-6. Create `zsh/local.zsh` from `local.zsh.example` if it doesn't exist
+2. Set Zsh as your default login shell (macOS/Fedora — Termux keeps its own init)
+3. Install Oh My Zsh
+4. Clone Powerlevel10k theme and the `zsh-autosuggestions` / `zsh-syntax-highlighting` plugins
+5. Install JetBrains Mono Nerd Font for the current platform
+6. Symlink `~/.zshrc`, `~/.gitconfig`, `~/.ssh/config` (and `~/.zprofile` on macOS/Linux)
+7. Create `zsh/local.zsh` from `local.zsh.example` if it doesn't exist
 
-After bootstrap, restart your shell or run `source ~/.zshrc`, then run `p10k configure` to personalise your prompt.
+After bootstrap, **log out and back in** (or run `exec zsh`) so your session switches from bash to Zsh, then run `p10k configure` to personalise your prompt.
 
 ### Existing machine (already has .zshrc, .gitconfig, etc.)
 
@@ -77,7 +78,9 @@ bash bootstrap.sh --links
    diff ~/.dotfiles-backup/<timestamp>/.zshrc ~/.dotfiles/zsh/.zshrc
    ```
 3. Move machine-specific values (tokens, `KUBECONFIG`, etc.) into `zsh/local.zsh`
-4. Run `source ~/.zshrc` to apply
+4. Run `exec zsh` to apply
+
+> `--links` skips package installs **and** the default-shell change. If Zsh is not your login shell yet, run `chsh -s "$(command -v zsh)"` yourself.
 
 ## Platform Support
 
@@ -88,9 +91,30 @@ bash bootstrap.sh --links
 | `.zprofile`    | Homebrew init (guarded) | symlinked (no-op) | not symlinked |
 | `plugins.zsh`  | fzf, zoxide, direnv (guarded) | fzf, zoxide, direnv (guarded) | fzf, zoxide, direnv (guarded) |
 | `bootstrap.sh` | `brew install` | `dnf install` | `pkg install` (no sudo) |
+| Default shell  | `chsh -s` zsh | `chsh -s` zsh | unchanged (Termux init) |
 | Font install   | Homebrew Cask | `~/.local/share/fonts/` + `fc-cache` | `~/.termux/font.ttf` |
 
 Tool hooks use `command -v` guards — the shell won't error if a tool isn't installed yet.
+
+## Troubleshooting
+
+**`setopt: command not found` / "Oh My Zsh can't be loaded from: bash"**
+You are sourcing `~/.zshrc` from bash. It is a Zsh file. Start Zsh first:
+
+```bash
+exec zsh
+```
+
+**`chsh: ... is not a valid shell`**
+Add Zsh to `/etc/shells`, then retry:
+
+```bash
+command -v zsh | sudo tee -a /etc/shells
+chsh -s "$(command -v zsh)"
+```
+
+**`parse error near '\n'` in `zsh/local.zsh`**
+`local.zsh` is copied from the example and is machine-local. Values containing `<`, `>` or spaces must be quoted, e.g. `export KUBECONFIG="$HOME/.kube/config-<name>"`.
 
 ## Theme & Prompt
 

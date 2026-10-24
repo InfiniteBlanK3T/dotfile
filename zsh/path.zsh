@@ -1,8 +1,10 @@
 # Note: platform.zsh is sourced before this in .zshrc — OS_TYPE is already set.
 
-# Safe baseline PATH — skip on Termux where standard Unix paths do not apply
+# Safe baseline PATH — skip on Termux where standard Unix paths do not apply.
+# Appended, not prepended: platform.zsh already put ~/.local/bin first and that
+# must keep priority over system binaries.
 if [[ "$OS_TYPE" != "termux" ]]; then
-  export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+  export PATH="$PATH:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 fi
 
 # VS Code CLI (macOS only)

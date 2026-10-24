@@ -1,6 +1,10 @@
 plugins=(git zsh-autosuggestions zsh-syntax-highlighting)
 
-source "$ZSH/oh-my-zsh.sh"
+if [[ -f "$ZSH/oh-my-zsh.sh" ]]; then
+  source "$ZSH/oh-my-zsh.sh"
+else
+  echo "plugins.zsh: Oh My Zsh not found at $ZSH — run ~/.dotfiles/bootstrap.sh" >&2
+fi
 
 # Tools (portable, guarded — safe if not installed)
 command -v fzf &>/dev/null && eval "$(fzf --zsh)"

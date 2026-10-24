@@ -70,14 +70,35 @@ if [[ "$LINKS_ONLY" == false ]]; then
 
     if command -v dnf &>/dev/null; then
       echo "==> Installing packages via dnf (Fedora)..."
-      sudo dnf install -y fzf zoxide direnv neovim zsh
+      sudo dnf install -y fzf zoxide direnv neovim zsh unzip curl git fontconfig
     else
-      echo "==> Non-Fedora Linux detected. Please install manually: fzf zoxide direnv neovim zsh"
+      echo "==> Non-Fedora Linux detected. Please install manually: fzf zoxide direnv neovim zsh unzip curl git fontconfig"
     fi
 
   else
     echo "ERROR: Unsupported OS: $OS_TYPE"
     exit 1
+  fi
+
+  # ── Default shell ──────────────────────────────────────────────────────────
+  # Installing zsh does not change the login shell. Without this, new terminals
+  # keep starting bash and ~/.zshrc is never read.
+  if [[ "$IS_TERMUX" != true ]]; then
+    ZSH_BIN="$(command -v zsh || true)"
+    CURRENT_SHELL="$(getent passwd "$USER" 2>/dev/null | cut -d: -f7)"
+    [[ -z "$CURRENT_SHELL" ]] && CURRENT_SHELL="$SHELL"
+
+    if [[ -z "$ZSH_BIN" ]]; then
+      echo "    [warn] zsh not found — skipping default shell change"
+    elif [[ "$CURRENT_SHELL" == "$ZSH_BIN" ]]; then
+      echo "    [skip]   Default shell is already $ZSH_BIN"
+    else
+      echo "==> Setting $ZSH_BIN as default shell..."
+      if ! grep -qx "$ZSH_BIN" /etc/shells 2>/dev/null; then
+        echo "$ZSH_BIN" | sudo tee -a /etc/shells >/dev/null
+      fi
+      chsh -s "$ZSH_BIN" || echo "    [warn] chsh failed — run manually: chsh -s $ZSH_BIN"
+    fi
   fi
 
   # ── Oh My Zsh ──────────────────────────────────────────────────────────────
@@ -113,31 +134,37 @@ if [[ "$LINKS_ONLY" == false ]]; then
   # ── JetBrains Mono Nerd Font ──────────────────────────────────────────────
   JBMONO_URL="https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip"
 
-  if [[ "$IS_TERMUX" == true ]]; then
-    echo "==> Installing JetBrains Mono Nerd Font for Termux..."
-    mkdir -p "$HOME/.termux"
-    TMP_FONT_DIR="$(mktemp -d)"
-    curl -fsSL "$JBMONO_URL" -o "$TMP_FONT_DIR/JetBrainsMono.zip"
-    unzip -p "$TMP_FONT_DIR/JetBrainsMono.zip" "JetBrainsMonoNerdFont-Regular.ttf" > "$HOME/.termux/font.ttf"
-    rm -rf "$TMP_FONT_DIR"
-    echo "    Font installed to ~/.termux/font.ttf"
-    echo "    Run: termux-reload-settings  (or restart Termux) to apply the font"
+  install_font() {
+    local tmp_dir font_dir
+    tmp_dir="$(mktemp -d)" || return 1
 
-  elif [[ "$OS_TYPE" == "Darwin" ]]; then
-    echo "==> Installing JetBrains Mono Nerd Font via Homebrew Cask..."
-    brew install --cask font-jetbrains-mono-nerd-font
+    if [[ "$IS_TERMUX" == true ]]; then
+      echo "==> Installing JetBrains Mono Nerd Font for Termux..."
+      mkdir -p "$HOME/.termux"
+      curl -fsSL "$JBMONO_URL" -o "$tmp_dir/JetBrainsMono.zip" || return 1
+      unzip -p "$tmp_dir/JetBrainsMono.zip" "JetBrainsMonoNerdFont-Regular.ttf" > "$HOME/.termux/font.ttf" || return 1
+      echo "    Font installed to ~/.termux/font.ttf"
+      echo "    Run: termux-reload-settings  (or restart Termux) to apply the font"
 
-  elif [[ "$OS_TYPE" == "Linux" ]]; then
-    echo "==> Installing JetBrains Mono Nerd Font..."
-    FONT_DIR="$HOME/.local/share/fonts/JetBrainsMono"
-    mkdir -p "$FONT_DIR"
-    TMP_FONT_DIR="$(mktemp -d)"
-    curl -fsSL "$JBMONO_URL" -o "$TMP_FONT_DIR/JetBrainsMono.zip"
-    unzip -o "$TMP_FONT_DIR/JetBrainsMono.zip" "*.ttf" -d "$FONT_DIR"
-    rm -rf "$TMP_FONT_DIR"
-    fc-cache -f "$FONT_DIR"
-    echo "    Font installed to $FONT_DIR"
-  fi
+    elif [[ "$OS_TYPE" == "Darwin" ]]; then
+      echo "==> Installing JetBrains Mono Nerd Font via Homebrew Cask..."
+      brew install --cask font-jetbrains-mono-nerd-font || return 1
+
+    elif [[ "$OS_TYPE" == "Linux" ]]; then
+      echo "==> Installing JetBrains Mono Nerd Font..."
+      font_dir="$HOME/.local/share/fonts/JetBrainsMono"
+      mkdir -p "$font_dir"
+      curl -fsSL "$JBMONO_URL" -o "$tmp_dir/JetBrainsMono.zip" || return 1
+      unzip -o "$tmp_dir/JetBrainsMono.zip" "*.ttf" -d "$font_dir" || return 1
+      command -v fc-cache &>/dev/null && fc-cache -f "$font_dir"
+      echo "    Font installed to $font_dir"
+    fi
+
+    rm -rf "$tmp_dir"
+  }
+
+  # The font is cosmetic — never let it abort the rest of the setup.
+  install_font || echo "    [warn] Font install failed. Install JetBrainsMono Nerd Font manually if needed."
 fi
 
 # ── Symlinks ─────────────────────────────────────────────────────────────────
@@ -145,6 +172,11 @@ echo "==> Symlinking dotfiles..."
 
 safe_symlink "$DOTFILES/zsh/.zshrc"     "$HOME/.zshrc"
 safe_symlink "$DOTFILES/git/.gitconfig" "$HOME/.gitconfig"
+
+# SSH client config (public config only — never private keys)
+mkdir -p "$HOME/.ssh"
+chmod 700 "$HOME/.ssh"
+safe_symlink "$DOTFILES/ssh/config"     "$HOME/.ssh/config"
 
 # .zprofile is for macOS/Linux login shells; Termux uses its own init system
 if [[ "$IS_TERMUX" != true ]]; then
@@ -166,7 +198,7 @@ if [[ ! -f "$DOTFILES/zsh/local.zsh" ]]; then
 fi
 
 echo ""
-echo "==> Done! Restart your shell or run: source ~/.zshrc"
+echo "==> Done! Log out and back in (or run: exec zsh) to start using Zsh."
 echo ""
 echo "    Reminders:"
 if [[ "$IS_TERMUX" == true ]]; then
