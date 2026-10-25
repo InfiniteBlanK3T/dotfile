@@ -1,14 +1,26 @@
-# ~/.ssh/config — managed by ~/.dotfiles
-# Symlinked: ln -sf ~/.dotfiles/ssh/config ~/.ssh/config
+# SSH client configuration — safe to publish: no keys, no secrets.
+# The live ~/.ssh/config is a symlink to this file. Keep it mode 600.
 #
-# Public client config only. Never commit private keys.
+# Machine-specific hosts and identities belong in config.local (gitignored).
 
 # Keep connections alive on flaky networks
 Host *
-    ServerAliveInterval 60
-    ServerAliveCountMax 3
+	ServerAliveInterval 60
+	ServerAliveCountMax 3
 
-# Add machine-specific hosts below, for example:
-# Host homelab
-#     HostName 192.168.1.10
-#     User youruser
+Host gitea.local.thomasvoishere.com
+	HostName gitea.local.thomasvoishere.com
+	Port 2222
+	User git
+	IdentityFile ~/.ssh/id_ed25519_personal
+	IdentitiesOnly yes
+
+Host gitea
+	HostName gitea.local.thomasvoishere.com
+	Port 2222
+	User git
+	IdentityFile ~/.ssh/id_ed25519_personal
+	IdentitiesOnly yes
+
+# Optional machine-local entries. A missing file is ignored by OpenSSH.
+Include ~/.ssh/config.local

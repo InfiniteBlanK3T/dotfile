@@ -1,5 +1,10 @@
 # ── Secrets & machine-local ──────────────────────────────────────────────────
 zsh/local.zsh
+ssh/config.local
+
+# ── Desktop snapshots that may contain account data ─────────────────────────
+gui/dconf.ini
+gui/private/
 
 # ── macOS ────────────────────────────────────────────────────────────────────
 .DS_Store

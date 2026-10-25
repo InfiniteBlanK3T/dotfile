@@ -1,6 +1,7 @@
-[user]
-	name = InfiniteBlanK3T
-	email = applications.clubbed579@passinbox.com
+# Portable git preferences. Identity and machine-specific paths live in
+# ~/.gitconfig.local (gitignored), included below.
+[include]
+	path = ~/.gitconfig.local
 
 [core]
 	editor = nvim

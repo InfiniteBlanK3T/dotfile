@@ -1,100 +1,188 @@
 # dotfiles
 
-Personal shell configuration for macOS, Fedora, and Termux (Android). Built on Zsh + Oh My Zsh with a modular structure — each concern lives in its own file, platform differences are isolated, and secrets stay off Git.
+Personal workstation configuration for **Fedora**, **macOS**, and **Termux** — Zsh +
+Oh My Zsh + Powerlevel10k, a curated CLI toolset, SSH client config, and an idempotent
+bootstrap script.
 
-## Structure
+This repository is **public**. Treat everything committed here as world-readable.
 
-```
-.dotfiles/
-├── bootstrap.sh          # One-command setup for a new machine
-├── .gitignore
-├── git/
-│   └── .gitconfig        # Git identity and preferences
-├── ssh/
-│   └── config            # SSH client config (no private keys)
-└── zsh/
-    ├── .zshrc            # Entry point — symlinked to ~/.zshrc
-    ├── .zprofile         # Login shell — Homebrew init (macOS only, guarded)
-    ├── platform.zsh      # OS detection: macOS / Fedora / Termux
-    ├── path.zsh          # PATH configuration
-    ├── env.zsh           # Environment variables (non-secret)
-    ├── options.zsh       # Zsh behaviour options
-    ├── history.zsh       # History settings
-    ├── plugins.zsh       # Oh My Zsh plugins + tool hooks (fzf, zoxide, direnv)
-    ├── local.zsh         # Machine-local secrets and overrides — NOT committed
-    └── local.zsh.example # Template for local.zsh
-```
+## Security model
 
-## Quick Setup
+| Belongs in this repo | Belongs outside this repo |
+|---|---|
+| Shell, editor, git *preferences* | Git name and email (`~/.gitconfig.local`) |
+| Portable SSH client config | Private keys, host-specific SSH entries (`~/.ssh/config.local`) |
+| Package and tool manifests | Tokens, kubeconfigs, vault passwords (`zsh/local.zsh`) |
+| Desktop package snapshots | Desktop settings with account data (`gui/dconf.ini`) |
 
-### macOS / Fedora
+Rules:
+
+- Never commit private keys, tokens, kubeconfigs, or vault data.
+- Git identity is machine-local, not published. `~/.gitconfig` includes `~/.gitconfig.local`.
+- Host-specific SSH entries go in `~/.ssh/config.local`, which is gitignored.
+- Before publishing a fork or a new history, run `gitleaks detect` and review `git log -p`.
+
+## Quick start
+
+### Fedora
 
 ```bash
-git clone https://github.com/InfiniteBlanK3T/dotfile.git ~/.dotfiles
+git clone https://github.com/InfiniteBlanK3T/dotfiles.git ~/.dotfiles
 cd ~/.dotfiles
-bash bootstrap.sh
+./bootstrap.sh --all
 ```
 
-### Termux (Android)
+### macOS
+
+```bash
+xcode-select --install                          # git
+git clone https://github.com/InfiniteBlanK3T/dotfiles.git ~/.dotfiles
+cd ~/.dotfiles
+./bootstrap.sh --all
+```
+
+Install Homebrew first if it is missing; the script does not install it for you.
+
+### Termux
 
 ```bash
 pkg install -y git
-git clone https://github.com/InfiniteBlanK3T/dotfile.git ~/.dotfiles
+git clone https://github.com/InfiniteBlanK3T/dotfiles.git ~/.dotfiles
 cd ~/.dotfiles
-bash bootstrap.sh
+./bootstrap.sh --links --packages
 ```
 
-`bootstrap.sh` will:
-1. Install packages via the platform package manager (Homebrew / dnf / pkg)
-2. Set Zsh as your default login shell (macOS/Fedora — Termux keeps its own init)
-3. Install Oh My Zsh
-4. Clone Powerlevel10k theme and the `zsh-autosuggestions` / `zsh-syntax-highlighting` plugins
-5. Install JetBrains Mono Nerd Font for the current platform
-6. Symlink `~/.zshrc`, `~/.gitconfig`, `~/.ssh/config` (and `~/.zprofile` on macOS/Linux)
-7. Create `zsh/local.zsh` from `local.zsh.example` if it doesn't exist
+Termux cannot run Docker, Terraform, or Kubernetes tooling. `--all` is intentionally not
+recommended there; clone repositories only if you need the files on the device.
 
-After bootstrap, **log out and back in** (or run `exec zsh`) so your session switches from bash to Zsh, then run `p10k configure` to personalise your prompt.
-
-### Existing machine (already has .zshrc, .gitconfig, etc.)
-
-**Nothing is silently overwritten.** The bootstrap script will detect existing files, back them up with a timestamp, and then create the symlinks:
+## What the bootstrap does
 
 ```
-[backup] ~/.zshrc → ~/.dotfiles-backup/20260331_143022/.zshrc
-[linked] ~/.zshrc → ~/.dotfiles/zsh/.zshrc
+./bootstrap.sh              # symlinks + packages (prompts before sudo)
+./bootstrap.sh --all        # symlinks + packages + clone Homelab repositories
+./bootstrap.sh --links      # symlinks only
+./bootstrap.sh --packages   # packages only
+./bootstrap.sh --repos      # clone/fetch Homelab repositories only
+./bootstrap.sh --check      # doctor: verify, change nothing
+./bootstrap.sh --yes        # non-interactive sudo
+./bootstrap.sh --strict     # with --check: warnings count as failures
 ```
 
-Backups land in `~/.dotfiles-backup/<timestamp>/` so you can always recover.
+It performs, in order:
 
-To run only the symlink step (skip package installs, useful on an existing machine):
+1. Symlinks `~/.zshrc`, `~/.zprofile`, `~/.gitconfig`, `~/.p10k.zsh`, `~/.ssh/config`.
+2. Creates `~/.gitconfig.local` (prompts for name/email), `zsh/local.zsh`, `~/.ssh/config.local`.
+3. Installs packages: `dnf` + third-party repos on Fedora, `brew bundle` on macOS, `pkg` on Termux.
+4. Sets Zsh as the default login shell on Fedora/macOS (Termux keeps its own init).
+5. Installs the Bitwarden CLI, pinned `argocd`, the Nerd Font, Oh My Zsh and its plugins.
+6. With `--all`, clones the Homelab wrapper and then the workspace repositories.
+
+Properties:
+
+- **Idempotent.** Re-running is safe; existing files are backed up to
+  `~/.dotfiles-backup/<timestamp>/` with their relative paths preserved.
+- **Not transactional.** Each step is independent; a failed step is reported and the run continues.
+- **No secrets.** The script never logs in to a vault, fetches a secret, or writes a private key.
+- **No destructive desktop changes.** GNOME settings are snapshotted, never applied.
+
+After bootstrap, **log out and back in** (or run `exec zsh`) so the session switches from bash
+to Zsh, then run `p10k configure` to personalise the prompt.
+
+### Existing machine
+
+Nothing is silently overwritten; files are backed up first. A safe sequence:
+
 ```bash
-bash bootstrap.sh --links
+./bootstrap.sh --links             # symlinks only, no package installs or shell change
+diff ~/.dotfiles-backup/<timestamp>/.zshrc ~/.dotfiles/zsh/.zshrc
+# move machine-specific values into zsh/local.zsh
+exec zsh
 ```
 
-**Recommended workflow for existing machines:**
-1. Run `bash bootstrap.sh --links` first to see what gets backed up and linked
-2. Diff your backup against the dotfiles to carry over any personal config:
+`--links` skips both package installation and the default-shell change. If Zsh is not your
+login shell yet, run `chsh -s "$(command -v zsh)"` yourself.
+
+## Manual steps after bootstrap
+
+1. **SSH key for Gitea**
+
    ```bash
-   diff ~/.dotfiles-backup/<timestamp>/.zshrc ~/.dotfiles/zsh/.zshrc
+   cd ~/Documents/Homelab
+   ./scripts/clone-all.sh --gen-key
+   # paste the printed public key into Gitea -> Settings -> SSH / GPG Keys
    ```
-3. Move machine-specific values (tokens, `KUBECONFIG`, etc.) into `zsh/local.zsh`
-4. Run `exec zsh` to apply
 
-> `--links` skips package installs **and** the default-shell change. If Zsh is not your login shell yet, run `chsh -s "$(command -v zsh)"` yourself.
+2. **Bitwarden / Vaultwarden**
 
-## Platform Support
+   ```bash
+   bw config server https://vault.local.thomasvoishere.com
+   bw login && bw sync
+   export BW_SESSION="$(bw unlock --raw)"
+   bw get item "Homelab kubeconfig (k3s)" --raw | jq -r '.notes' > ~/.kube/config-homelab-k3s
+   chmod 600 ~/.kube/config-homelab-k3s
+   bw lock
+   ```
 
-| File           | macOS | Fedora | Termux (Android) |
-|----------------|-------|--------|------------------|
-| `platform.zsh` | Homebrew shellenv | `~/.local/bin` in PATH | `$PREFIX/bin` in PATH |
-| `path.zsh`     | VS Code CLI path | — | skips standard Unix paths |
-| `.zprofile`    | Homebrew init (guarded) | symlinked (no-op) | not symlinked |
-| `plugins.zsh`  | fzf, zoxide, direnv (guarded) | fzf, zoxide, direnv (guarded) | fzf, zoxide, direnv (guarded) |
-| `bootstrap.sh` | `brew install` | `dnf install` | `pkg install` (no sudo) |
-| Default shell  | `chsh -s` zsh | `chsh -s` zsh | unchanged (Termux init) |
-| Font install   | Homebrew Cask | `~/.local/share/fonts/` + `fc-cache` | `~/.termux/font.ttf` |
+   Store shared credentials (kubeconfig, ArgoCD admin, Ansible vault password) in the vault.
+   Generate private SSH keys per machine; store only the **public** key fingerprint and a
+   workstation inventory note.
 
-Tool hooks use `command -v` guards — the shell won't error if a tool isn't installed yet.
+3. **Tailscale** — `sudo tailscale up` when off-LAN.
+
+4. **VS Code** — sign in to Settings Sync; extensions and settings follow the account.
+
+5. **Shell** — log out and back in, or `exec zsh`.
+
+## Layout
+
+```
+bootstrap.sh
+manifest/
+  fedora-repos.sh        # third-party dnf repositories (idempotent)
+  fedora-packages.txt    # curated package set
+  fedora-flatpaks.txt
+  macos/Brewfile
+  termux-packages.txt
+  binaries.tsv           # pinned standalone binaries + SHA-256
+  npm-globals.txt
+zsh/
+  .zshrc .zprofile
+  platform.zsh path.zsh env.zsh options.zsh history.zsh plugins.zsh
+  p10k.zsh               # tracked Powerlevel10k config
+  local.zsh.example
+git/.gitconfig           # preferences + include of ~/.gitconfig.local
+ssh/config               # Gitea host block only
+ssh/config.local.example
+gui/                     # snapshots, never applied automatically
+```
+
+## Zsh load order
+
+```
+.zshrc
+  platform.zsh   # OS detection + package-manager environment
+  path.zsh       # PATH (depends on OS_TYPE)
+  env.zsh        # non-secret environment variables
+  options.zsh    # setopt flags
+  history.zsh    # history configuration
+  plugins.zsh    # Oh My Zsh + tool hooks
+  local.zsh      # machine-local overrides (untracked)
+  ~/.p10k.zsh    # prompt configuration
+```
+
+## Prompt
+
+Powerlevel10k configuration is tracked as `zsh/p10k.zsh` and symlinked to `~/.p10k.zsh`.
+Re-run `p10k configure` to change it, then copy the result back into the repository:
+
+```bash
+cp ~/.p10k.zsh ~/.dotfiles/zsh/p10k.zsh
+```
+
+## Font
+
+JetBrains Mono Nerd Font is installed automatically on Fedora and Termux. On macOS it comes
+from the Brewfile cask. Select **JetBrainsMono Nerd Font** in your terminal preferences.
 
 ## Troubleshooting
 
@@ -114,65 +202,29 @@ chsh -s "$(command -v zsh)"
 ```
 
 **`parse error near '\n'` in `zsh/local.zsh`**
-`local.zsh` is copied from the example and is machine-local. Values containing `<`, `>` or spaces must be quoted, e.g. `export KUBECONFIG="$HOME/.kube/config-<name>"`.
+`local.zsh` is copied from the example and is machine-local. Values containing `<`, `>` or
+spaces must be quoted, e.g. `export KUBECONFIG="$HOME/.kube/config-<name>"`.
 
-## Theme & Prompt
-
-The dotfiles ship with [Powerlevel10k](https://github.com/romkatv/powerlevel10k) as the Zsh theme. Bootstrap clones it automatically. **Prompt style is intentionally left unconfigured** — run the wizard yourself after setup:
-
-```zsh
-p10k configure
-```
-
-Your choices are saved to `~/.p10k.zsh` (not tracked by this repo, so each machine has its own layout).
-
-## Nerd Font
-
-Bootstrap installs [JetBrains Mono Nerd Font](https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip) automatically:
-
-| Platform | Location | Activation |
-|----------|----------|------------|
-| macOS | system font (Homebrew Cask) | select in terminal preferences |
-| Fedora | `~/.local/share/fonts/JetBrainsMono/` | automatic via `fc-cache` |
-| Termux | `~/.termux/font.ttf` | run `termux-reload-settings` or restart Termux |
-
-After installing the font, set **JetBrainsMono Nerd Font** as your terminal's font face to unlock all Powerlevel10k glyphs.
-
-## Zsh File Load Order
-
-```
-.zshrc
-  └── platform.zsh   # 1. OS type + package manager env
-  └── path.zsh       # 2. PATH (depends on OS_TYPE from platform.zsh)
-  └── env.zsh        # 3. Environment variables
-  └── options.zsh    # 4. Zsh setopt flags
-  └── history.zsh    # 5. History config
-  └── plugins.zsh    # 6. Oh My Zsh + tool hooks
-  └── local.zsh      # 7. Machine-local overrides (if exists)
-```
-
-## Machine-Local Config
-
-Secrets, tokens, and machine-specific variables go in `zsh/local.zsh`. This file is gitignored and never committed. Copy the template to get started:
+**`~/.ssh/config is not writable`**
+The file is owned by another user (often root). Fix it, then re-run `--links`:
 
 ```bash
-cp ~/.dotfiles/zsh/local.zsh.example ~/.dotfiles/zsh/local.zsh
+sudo chown "$(id -un):$(id -gn)" ~/.ssh/config
+chmod 600 ~/.ssh/config
 ```
 
-Edit it to add machine-specific values:
-```zsh
-export KUBECONFIG=~/.kube/config-homelab-k3s
-export MY_API_TOKEN="..."
-```
+## Known limitations
 
-`local.zsh` is sourced last, so it can override anything set in the other files.
+- **macOS and Termux paths are untested** on real hardware at the time of writing. They are
+  syntax-checked and doctor-checked only. Fedora is the verified target.
+- `opencode` is installed with its upstream installer. That installer is downloaded and
+  executed; review it if you need a fully pinned supply chain.
+- `argocd` is a pinned standalone binary (`manifest/binaries.tsv`). Helm and k9s come from
+  Fedora repositories on Fedora and Homebrew on macOS.
 
-## Tools Installed
+## Maintenance
 
-| Tool      | Purpose                              | macOS | Fedora | Termux |
-|-----------|--------------------------------------|-------|--------|--------|
-| `fzf`     | Fuzzy finder — Ctrl+R, Ctrl+T        | ✓ | ✓ | ✓ |
-| `zoxide`  | Smarter `cd` with frecency           | ✓ | ✓ | ✓ |
-| `direnv`  | Per-directory environment variables  | ✓ | ✓ | ✓ |
-| `neovim`  | Editor                               | ✓ | ✓ | ✓ |
-
+- Add a package: edit the relevant manifest, then run `--packages` and `--check`.
+- Add a repository: update `Homelab/scripts/clone-all.sh` and root `.gitignore` together.
+- Rotate a credential: update the vault item and the workstation inventory note.
+- Decommission a machine: remove its public key from Gitea/GitHub and mark the vault note.
